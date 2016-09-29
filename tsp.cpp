@@ -2,9 +2,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
 
 #define OUT_NAME "solution.csv"
 #define SQ(a) ((a) * (a))
+#define MAX_WEIGHT 1000000000
+#define MUTATE_RATIO 1.0
+#define MUTATE_REL_RADIUS 20.0
+#define SEL_FACTOR 10.0
+
+typedef long long int LL;
 
 FILE *fi;
 int population = 100;
@@ -12,315 +19,55 @@ int max_eval = 1000;
 char filename[101] = "test.tsp";
 int size;
 double *x, *y;
+int **P, **temp_P;
+int *weight;
+int *order;
+LL *dist, *temp_dist;
 
-typedef long long int LL;
-
-void input(int, char**);            // input from given filename
-void output(int*);                  // output to "solution.csv"
-LL distance(int*);                  // calculate distance of a given tour
-LL distance(int, int);              // calculate distance between given 2 cities
-LL nint(double);
+void input(int, char**);                        // input from given filename
+void output(int*);                              // output to "solution.csv"
+LL distance(int*);                              // calculate distance of a given tour
+LL distance(int, int);                          // calculate distance between given 2 cities
+LL nint(double);                                // double -> long long int
+int int_compare(const void *, const void *);    // compare between long long int
+int order_compare(const void *, const void *);  // compare between population
+void init_tour(int*);                           // initial tour
+void generate_population();                     // generate initial population
+void next_generation();                         // create next generation
+void crossover(int, int, int);                  // cross-over for 2 tours
+void finish();                                  // delete all memories
+void print_dist(bool all = false);              // print distances of tours
+void print_tour(int*);                          // print a given tour
+bool random_pass(double);                       // return true with given probability
+int random_select(int except = -1);             // position random selection
+void population_sort(int);                      // sorting population
+void upgrade(int);                              // to local maximum of given tour
+int swap_delta(int*, int);                      // calculate distance delat after swap
+void swap(int*, int, int);                      // swap position
 
 int main(int argc, char** argv) {
     int i;
-    int *init;
-    int temp[280] = {
-0,
-1,
-241,
-242,
-243,
-240,
-239,
-238,
-237,
-236,
-235,
-234,
-233,
-232,
-231,
-230,
-245,
-244,
-246,
-249,
-250,
-229,
-228,
-227,
-226,
-225,
-224,
-223,
-222,
-221,
-220,
-219,
-218,
-217,
-216,
-215,
-214,
-213,
-212,
-211,
-210,
-209,
-206,
-205,
-204,
-203,
-202,
-201,
-200,
-197,
-196,
-195,
-194,
-193,
-192,
-191,
-190,
-189,
-188,
-187,
-186,
-185,
-184,
-183,
-182,
-181,
-180,
-175,
-179,
-178,
-149,
-177,
-176,
-150,
-151,
-155,
-152,
-154,
-153,
-128,
-129,
-130,
-20,
-21,
-128,
-127,
-126,
-125,
-124,
-123,
-122,
-121,
-120,
-119,
-157,
-158,
-159,
-160,
-175,
-161,
-162,
-163,
-164,
-165,
-166,
-167,
-168,
-169,
-170,
-172,
-171,
-173,
-174,
-107,
-106,
-105,
-104,
-103,
-102,
-101,
-100,
-99,
-98,
-97,
-96,
-95,
-94,
-93,
-92,
-91,
-90,
-89,
-109,
-108,
-110,
-111,
-112,
-88,
-87,
-113,
-114,
-115,
-117,
-116,
-86,
-85,
-84,
-83,
-82,
-81,
-80,
-79,
-78,
-77,
-76,
-75,
-74,
-73,
-72,
-71,
-70,
-69,
-68,
-67,
-66,
-65,
-64,
-58,
-57,
-56,
-55,
-54,
-53,
-52,
-51,
-50,
-49,
-48,
-47,
-46,
-45,
-44,
-59,
-63,
-62,
-118,
-61,
-60,
-43,
-42,
-41,
-40,
-39,
-38,
-37,
-36,
-35,
-34,
-33,
-32,
-31,
-30,
-29,
-28,
-27,
-26,
-22,
-25,
-23,
-24,
-14,
-15,
-13,
-12,
-11,
-10,
-9,
-8,
-7,
-6,
-5,
-4,
-277,
-276,
-275,
-274,
-273,
-272,
-271,
-16,
-17,
-18,
-19,
-132,
-133,
-134,
-270,
-269,
-135,
-136,
-268,
-267,
-137,
-138,
-139,
-149,
-148,
-147,
-146,
-145,
-199,
-200,
-144,
-143,
-142,
-141,
-140,
-266,
-265,
-264,
-263,
-262,
-261,
-260,
-259,
-258,
-257,
-254,
-253,
-208,
-209,
-252,
-255,
-256,
-249,
-248,
-278,
-279,
-3,
-280
-    };
-    input(argc, argv);
-    init = new int[size];
-    for (i = 0; i < size; i++){
-        init[i] = i;
-    }
-    printf("%lld\n", distance(init));
-    printf("%lld\n", distance(temp));
+    // seed for rand
+    srand(time(NULL));
 
-    fclose(fi);
-    delete[] init;
-    delete[] x;
-    delete[] y;
+    // get input
+    input(argc, argv);
+
+    // generate initial population
+    generate_population();
+    print_dist();
+
+    // generation iteration
+    for (i = 0; i < max_eval; i++) {
+        next_generation();
+        print_dist();
+    }
+
+    // display final distance of tour
+    printf("%lld\n", dist[0]);
+    finish();
     return 0;
 }
-
 
 ///////////////////////////////////////////////
 // Helper
@@ -361,7 +108,16 @@ void input(int argc, char** argv) {
         int temp;
         fscanf(fi, "%d %lf %lf", &temp, &x[i], &y[i]);
     }
-    return;
+
+    // init for global weight
+    weight = new int[size];
+
+    // init for distance of tours
+    dist = new LL[population * 2];
+    temp_dist = new LL[population * 2];
+
+    // init for order
+    order = new int[population * 2];
 }
 
 void output(int* arr) {
@@ -375,8 +131,7 @@ void output(int* arr) {
 
 LL distance(int* tour) {
     int i;
-    // LL dist = distance(tour[0], tour[size-1]);
-    LL dist = 0;
+    LL dist = distance(tour[0], tour[size-1]);
     for (i = 1; i < size; i++) {
         dist += distance(tour[i-1], tour[i]);
     }
@@ -388,3 +143,170 @@ LL distance(int from, int to) {
 }
 
 LL nint(double d) { return (LL)(d + 0.5); }
+
+int int_compare(const void *left, const void *right) {
+    int l_pos = *(int*)left;
+    int r_pos = *(int*)right;
+    return (int)(weight[r_pos] - weight[l_pos]);
+}
+
+// TODO better initial tour
+void init_tour(int* init) {
+    int i;
+    for (i = 0; i < size; i++) {
+        init[i] = i;
+        weight[i] = rand() % MAX_WEIGHT;
+    }
+    qsort(init, size, sizeof(int), int_compare);
+}
+
+void generate_population() {
+    int i;
+    P = new int*[2 * population];
+    temp_P = new int*[2 * population];
+    for (i = 0; i < 2 * population; i++){
+        P[i] = new int[size];
+        if (i < population) {
+            init_tour(P[i]);
+            dist[i] = distance(P[i]);
+            upgrade(i);
+        }
+    }
+}
+
+void crossover(int father, int mother, int child) {
+    int i;
+    for (i = 0; i < size; i++){
+        int mutate = 0;
+        if (rand() % 100 < random_pass(MUTATE_RATIO)) {
+            int sign = (rand() % 2) * 2 - 1;
+            mutate = sign * (rand() % (int)(size / 100.0 * MUTATE_REL_RADIUS));
+        }
+        weight[i] = (P[father][i] + P[mother][i]) / 2 + mutate;
+        P[child][i] = i;
+    }
+    qsort(P[child], size, sizeof(int), int_compare);
+    dist[child] = distance(P[child]);
+}
+
+void next_generation() {
+    int father, mother, i;
+    for (i = 0; i < population; i++){
+        father = random_select();
+        mother = random_select(father);
+        crossover(father, mother, i + population);
+        upgrade(i);
+    }
+    population_sort(population * 2);
+}
+
+void population_sort(int n) {
+    int i;
+    for (i = 0; i < n; i++) {
+        order[i] = i;
+    }
+    qsort(order, n, sizeof(int), order_compare);
+    for (i = 0; i < n; i++) {
+        temp_dist[i] = dist[i];
+        temp_P[i] = P[i];
+    }
+    for (i = 0; i < n; i++) {
+        dist[i] = temp_dist[order[i]];
+        P[i] = temp_P[order[i]];
+    }
+}
+
+void print_dist(bool all) {
+    int i;
+    int n = population;
+    if (all) n *= 2;
+    for (i = 0; i < n; i++){
+        printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
+    }
+    printf("\n");
+}
+
+bool random_pass(double percent) {
+    int k = rand() % 10000;
+    int t = (int)(percent * 100);
+    return k < t;
+}
+
+int random_select(int except) {
+    int i;
+    for (i = 0; i < population; i++) {
+        if (i != except && random_pass(SEL_FACTOR)) {
+            return i;
+        }
+    }
+    i = rand() % population;
+    if (i == except)
+        return population - 1;
+    return i;
+}
+
+void finish() {
+    int i;
+    for (i = 0; i < 2*population; i++){
+        delete[] P[i];
+    }
+    delete[] P;
+    delete[] temp_P;
+
+    fclose(fi);
+    delete[] x;
+    delete[] y;
+    delete[] dist;
+    delete[] temp_dist;
+    delete[] order;
+    delete[] weight;
+}
+
+int order_compare(const void *left, const void *right) {
+    LL l_pos = dist[*(int*)left];
+    LL r_pos = dist[*(int*)right];
+    if (l_pos < r_pos) return -1;
+    else if (l_pos > r_pos) return 1;
+    else return 0;
+}
+
+void print_tour(int* tour) {
+    int i;
+    for (i = 0; i < size; i++){
+        printf("%d\n", tour[i]);
+    }
+}
+
+void upgrade(int k) {
+    int *tour = P[k];
+    while (true) {
+        int min_delta = swap_delta(tour, 0);
+        int min_idx = 0;
+        int i;
+        for (i = 1; i < size; i++) {
+            int delta = swap_delta(tour, i);
+            if (min_delta > delta) {
+                min_delta = delta;
+                min_idx = i;
+            }
+        }
+        if (min_delta < 0) swap(tour, min_idx, (min_idx+size-1) % size);
+        else break;
+    }
+    dist[k] = distance(tour);
+}
+
+int swap_delta(int* tour, int x) {
+    int x_after = (x+1)%size;
+    int y = (x+size-1)%size;
+    int y_before = (y+size-1)%size;
+    return (distance(tour[x], tour[y_before]) + distance(tour[y], tour[x_after])
+        - distance(tour[x], tour[x_after]) - distance(tour[y], tour[y_before]));
+}
+
+void swap(int* tour, int x, int y) {
+    int tmp;
+    tmp = tour[x];
+    tour[x] = tour[y];
+    tour[y] = tmp;
+}
