@@ -28,6 +28,10 @@ int *weight;
 int *order;
 LL *dist, *temp_dist;
 bool *temp_check;
+bool use_db = false;
+char db_name[101];
+bool verbose = false;
+bool upgrade_verbose = false;
 
 void input(int, char**);                        // input from given filename
 void output(int*);                              // output to "solution.csv"
@@ -54,8 +58,9 @@ bool get_line_intersection(
         double, double, double, double);
 void unwind(int*, int, int);                    // unwind cross line
 bool tour_check(int*);                          // checking whether it is tour
-double gaussian(int max);                       // gaussian random
-void mutate(int tour_idx);                      // mutate tour
+double gaussian(int);                           // gaussian random
+void mutate(int);                               // mutate tour
+void read_db();                                 // read db
 
 int main(int argc, char** argv) {
     int i;
@@ -70,8 +75,11 @@ int main(int argc, char** argv) {
 
     // generation iteration
     for (i = 0; i < max_eval; i++) {
+        if (verbose) {
+            print_dist();
+            output(P[0]);
+        }
         next_generation();
-        print_dist();
     }
 
     // display final distance of tour
@@ -98,6 +106,14 @@ void input(int argc, char** argv) {
         } else if (strcmp(str, "-f") == 0) {
             // fitness evaluations
             max_eval = atoi(argv[++i]);
+        } else if (strcmp(str, "-db") == 0) {
+            // fitness evaluations
+            use_db = true;
+            strcpy(db_name, argv[++i]);
+        } else if (strcmp(str, "-v") == 0) {
+            verbose = true;
+        } else if (strcmp(str, "-uv") == 0) {
+            upgrade_verbose = true;
         } else {
             // filename
             strcpy(filename, str);
@@ -126,13 +142,6 @@ void input(int argc, char** argv) {
     // init for global weight
     weight = new int[size];
 
-    // init for distance of tours
-    dist = new LL[population * MULTIPLE];
-    temp_dist = new LL[population * MULTIPLE];
-
-    // init for order
-    order = new int[population * MULTIPLE];
-
     // init for temporal check
     temp_check = new bool[size];
 }
@@ -141,6 +150,7 @@ void output(int* arr) {
     int i, j;
     FILE *db = fopen("out.db", "w");
     FILE *fo = fopen(OUT_NAME, "w");
+    printf("writing...");
     for (i = 0; i < size; i++) {
         fprintf(fo, "%d\n", arr[i] + 1);
     }
@@ -154,6 +164,7 @@ void output(int* arr) {
     }
     fclose(fo);
     fclose(db);
+    printf("done!!\n");
 }
 
 LL distance(int* tour) {
@@ -188,17 +199,26 @@ void rand_init_tour(int* init) {
 
 void generate_population() {
     int i;
+    // init for distance of tours
+    dist = new LL[population * MULTIPLE];
+    temp_dist = new LL[population * MULTIPLE];
+
+    // init for order
+    order = new int[population * MULTIPLE];
+
+    // init for population
     P = new int*[MULTIPLE * population];
     temp_P = new int*[MULTIPLE * population];
     for (i = 0; i < MULTIPLE * population; i++){
         P[i] = new int[size];
-        if (i < population) {
+        if (!use_db && i < population) {
             rand_init_tour(P[i]);
             dist[i] = distance(P[i]);
             upgrade(i);
             // printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
         }
     }
+    if (use_db) read_db();
 }
 
 void crossover(int father, int mother, int child) {
@@ -229,7 +249,6 @@ void next_generation() {
         crossover(father, mother, i + population);
         upgrade(i + population);
         mutate(i + population);
-        // printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
     }
     population_sort(population * MULTIPLE);
 }
@@ -327,7 +346,7 @@ void upgrade(int k) {
                     new_dist = distance(tour);
                     stop = dist[k] == new_dist;
                     dist[k] = new_dist;
-                    // printf("%lld\n", dist[k]);
+                    if (upgrade_verbose) printf("%lld\n", dist[k]);
                 }
             }
         }
@@ -409,4 +428,18 @@ void mutate(int tour_idx) {
             swap(tour, random_x, random_y);
         }
     }
+}
+
+void read_db() {
+    int i, j;
+    FILE *db = fopen(db_name, "r");
+    fscanf(db, "%d", &population);
+    fscanf(db, "%d", &size);
+    for (i = 0; i < population; i++) {
+        for (j = 0; j < size; j++) {
+            fscanf(db, "%d", &P[i][j]);
+        }
+        dist[i] = distance(P[i]);
+    }
+    fclose(db);
 }
