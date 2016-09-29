@@ -7,12 +7,13 @@
 #define OUT_NAME "solution.csv"
 #define SQ(a) ((a) * (a))
 #define MAX_WEIGHT 1000000000
-#define MUTATE_RATIO 1.0
-#define MUTATE_REL_RADIUS 20.0
-#define UPGRADE_RATIO 10.0
+#define MUTATE_MAX_RATIO 20
+#define MUTATE_SEL_RATIO 30
 #define SEL_FACTOR 10.0
 #define BEFORE(x) (((x)+size-1)%size)
 #define AFTER(x) (((x)+1)%size)
+#define GAUSSIAN_NUM 30
+#define MULTIPLE 5
 
 typedef long long int LL;
 
@@ -26,6 +27,7 @@ int **P, **temp_P;
 int *weight;
 int *order;
 LL *dist, *temp_dist;
+bool *temp_check;
 
 void input(int, char**);                        // input from given filename
 void output(int*);                              // output to "solution.csv"
@@ -52,6 +54,8 @@ bool get_line_intersection(
         double, double, double, double);
 void unwind(int*, int, int);                    // unwind cross line
 bool tour_check(int*);                          // checking whether it is tour
+double gaussian(int max);                       // gaussian random
+void mutate(int tour_idx);                      // mutate tour
 
 int main(int argc, char** argv) {
     int i;
@@ -67,11 +71,11 @@ int main(int argc, char** argv) {
     // generation iteration
     for (i = 0; i < max_eval; i++) {
         next_generation();
+        print_dist();
     }
 
     // display final distance of tour
     printf("%lld\n", dist[0]);
-    printf("%lld\n", distance(P[0]));
 
     // print route of the best tour
     output(P[0]);
@@ -123,20 +127,33 @@ void input(int argc, char** argv) {
     weight = new int[size];
 
     // init for distance of tours
-    dist = new LL[population * 2];
-    temp_dist = new LL[population * 2];
+    dist = new LL[population * MULTIPLE];
+    temp_dist = new LL[population * MULTIPLE];
 
     // init for order
-    order = new int[population * 2];
+    order = new int[population * MULTIPLE];
+
+    // init for temporal check
+    temp_check = new bool[size];
 }
 
 void output(int* arr) {
-    int i;
+    int i, j;
+    FILE *db = fopen("out.db", "w");
     FILE *fo = fopen(OUT_NAME, "w");
     for (i = 0; i < size; i++) {
         fprintf(fo, "%d\n", arr[i] + 1);
     }
+    fprintf(db, "%d\n", population);
+    fprintf(db, "%d\n", size);
+    for (i = 0; i < population; i++) {
+        for (j = 0; j < size; j++) {
+            fprintf(db, "%d%s", P[i][j], ((i==size-1)?"\n":" "));
+        }
+        fprintf(db, "\n");
+    }
     fclose(fo);
+    fclose(db);
 }
 
 LL distance(int* tour) {
@@ -160,8 +177,7 @@ int int_compare(const void *left, const void *right) {
     return (int)(weight[r_pos] - weight[l_pos]);
 }
 
-// TODO better initial tour
-void init_tour(int* init) {
+void rand_init_tour(int* init) {
     int i;
     for (i = 0; i < size; i++) {
         init[i] = i;
@@ -172,44 +188,50 @@ void init_tour(int* init) {
 
 void generate_population() {
     int i;
-    P = new int*[2 * population];
-    temp_P = new int*[2 * population];
-    for (i = 0; i < 2 * population; i++){
+    P = new int*[MULTIPLE * population];
+    temp_P = new int*[MULTIPLE * population];
+    for (i = 0; i < MULTIPLE * population; i++){
         P[i] = new int[size];
         if (i < population) {
-            init_tour(P[i]);
+            rand_init_tour(P[i]);
             dist[i] = distance(P[i]);
             upgrade(i);
-            printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
+            // printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
         }
     }
 }
 
 void crossover(int father, int mother, int child) {
-    int i;
+    int i, j;
+    int delta = rand() % size;
+    int cut = (int)gaussian(size) % size;
     for (i = 0; i < size; i++){
-        int mutate = 0;
-        if (rand() % 100 < random_pass(MUTATE_RATIO)) {
-            int sign = (rand() % 2) * 2 - 1;
-            mutate = sign * (rand() % (int)(size / 100.0 * MUTATE_REL_RADIUS));
-        }
-        weight[i] = (P[father][i] + P[mother][i]) / 2 + mutate;
-        P[child][i] = i;
+        temp_check[i] = false;
     }
-    qsort(P[child], size, sizeof(int), int_compare);
+    for (i = 0; i < cut; i++){
+        int k = (delta + i) % size;
+        P[child][k] = P[father][k];
+        temp_check[P[father][k]] = true;
+    }
+    for (i = cut, j = 0; i < size; i++, j++){
+        int k = (delta + i) % size;
+        while (temp_check[P[mother][j]]) j++;
+        P[child][k] = P[mother][j];
+    }
     dist[child] = distance(P[child]);
 }
 
 void next_generation() {
     int father, mother, i;
-    for (i = 0; i < population; i++){
+    for (i = 0; i < (MULTIPLE-1) * population; i++){
         father = random_select();
         mother = random_select(father);
         crossover(father, mother, i + population);
-        if (random_pass(UPGRADE_RATIO)) upgrade(i);
-        printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
+        upgrade(i + population);
+        mutate(i + population);
+        // printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
     }
-    population_sort(population * 2);
+    population_sort(population * MULTIPLE);
 }
 
 void population_sort(int n) {
@@ -231,7 +253,7 @@ void population_sort(int n) {
 void print_dist(bool all) {
     int i;
     int n = population;
-    if (all) n *= 2;
+    if (all) n *= MULTIPLE;
     for (i = 0; i < n; i++){
         printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
     }
@@ -259,7 +281,7 @@ int random_select(int except) {
 
 void finish() {
     int i;
-    for (i = 0; i < 2*population; i++){
+    for (i = 0; i < MULTIPLE*population; i++){
         delete[] P[i];
     }
     delete[] P;
@@ -272,6 +294,7 @@ void finish() {
     delete[] temp_dist;
     delete[] order;
     delete[] weight;
+    delete[] temp_check;
 }
 
 int order_compare(const void *left, const void *right) {
@@ -304,7 +327,7 @@ void upgrade(int k) {
                     new_dist = distance(tour);
                     stop = dist[k] == new_dist;
                     dist[k] = new_dist;
-                    printf("%lld\n", dist[k]);
+                    // printf("%lld\n", dist[k]);
                 }
             }
         }
@@ -361,5 +384,29 @@ void unwind(int *tour, int left, int right){
     int i;
     for (i = 0; i < gap / 2; i++){
         swap(tour, (left+i)%size, ((right-i-1)+size) % size);
+    }
+}
+
+double gaussian(int max) {
+    double sum = 0;
+    int i;
+    for (i = 0; i < GAUSSIAN_NUM; i++){
+        sum += rand() % max;
+    }
+    return sum / GAUSSIAN_NUM;
+}
+
+void mutate(int tour_idx) {
+    int *tour = P[tour_idx];
+    if (random_pass(MUTATE_SEL_RATIO)) {
+        int i, j;
+        int delta = rand() % size;
+        int max = size / 100.0 * MUTATE_MAX_RATIO;
+        int cut = (int)gaussian(max) % max;
+        for (i = 0; i < 2 * cut; i++){
+            int random_x = (rand() % cut + delta) % cut;
+            int random_y = (rand() % cut + delta) % cut;
+            swap(tour, random_x, random_y);
+        }
     }
 }
