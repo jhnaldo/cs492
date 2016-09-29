@@ -9,13 +9,16 @@
 #define MAX_WEIGHT 1000000000
 #define MUTATE_RATIO 1.0
 #define MUTATE_REL_RADIUS 20.0
+#define UPGRADE_RATIO 10.0
 #define SEL_FACTOR 10.0
+#define BEFORE(x) (((x)+size-1)%size)
+#define AFTER(x) (((x)+1)%size)
 
 typedef long long int LL;
 
 FILE *fi;
 int population = 100;
-int max_eval = 1000;
+int max_eval = 100;
 char filename[101] = "test.tsp";
 int size;
 double *x, *y;
@@ -42,8 +45,13 @@ bool random_pass(double);                       // return true with given probab
 int random_select(int except = -1);             // position random selection
 void population_sort(int);                      // sorting population
 void upgrade(int);                              // to local maximum of given tour
-int swap_delta(int*, int);                      // calculate distance delat after swap
 void swap(int*, int, int);                      // swap position
+bool cross_check(int*, int, int);               // line segments cross check
+bool get_line_intersection(
+        double, double, double, double,
+        double, double, double, double);
+void unwind(int*, int, int);                    // unwind cross line
+bool tour_check(int*);                          // checking whether it is tour
 
 int main(int argc, char** argv) {
     int i;
@@ -55,16 +63,18 @@ int main(int argc, char** argv) {
 
     // generate initial population
     generate_population();
-    print_dist();
 
     // generation iteration
     for (i = 0; i < max_eval; i++) {
         next_generation();
-        print_dist();
     }
 
     // display final distance of tour
     printf("%lld\n", dist[0]);
+    printf("%lld\n", distance(P[0]));
+
+    // print route of the best tour
+    output(P[0]);
     finish();
     return 0;
 }
@@ -97,7 +107,7 @@ void input(int argc, char** argv) {
     fscanf(fi, "NAME : %s\n", temp);
     fscanf(fi, "COMMENT : %[^\n]\n", temp);
     fscanf(fi, "TYPE : %s\n", temp);
-    fscanf(fi, "DIMENSION: %d\n", &size);
+    fscanf(fi, "DIMENSION : %d\n", &size);
     fscanf(fi, "EDGE_WEIGHT_TYPE : %s\n", temp);
     fscanf(fi, "%s\n", temp);
 
@@ -124,7 +134,7 @@ void output(int* arr) {
     int i;
     FILE *fo = fopen(OUT_NAME, "w");
     for (i = 0; i < size; i++) {
-        fprintf(fo, "%d\n", arr[i]);
+        fprintf(fo, "%d\n", arr[i] + 1);
     }
     fclose(fo);
 }
@@ -170,6 +180,7 @@ void generate_population() {
             init_tour(P[i]);
             dist[i] = distance(P[i]);
             upgrade(i);
+            printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
         }
     }
 }
@@ -195,7 +206,8 @@ void next_generation() {
         father = random_select();
         mother = random_select(father);
         crossover(father, mother, i + population);
-        upgrade(i);
+        if (random_pass(UPGRADE_RATIO)) upgrade(i);
+        printf("%lld%s", dist[i], ((i+1)%10?", ":"\n"));
     }
     population_sort(population * 2);
 }
@@ -273,35 +285,31 @@ int order_compare(const void *left, const void *right) {
 void print_tour(int* tour) {
     int i;
     for (i = 0; i < size; i++){
-        printf("%d\n", tour[i]);
+        printf("%4d", tour[i]);
+        if ((i+1) % 20 == 0) printf("\n");
     }
 }
 
 void upgrade(int k) {
     int *tour = P[k];
+    // unwind line segment cross
     while (true) {
-        int min_delta = swap_delta(tour, 0);
-        int min_idx = 0;
-        int i;
-        for (i = 1; i < size; i++) {
-            int delta = swap_delta(tour, i);
-            if (min_delta > delta) {
-                min_delta = delta;
-                min_idx = i;
+        int i, j;
+        bool stop = true;
+        for (i = 0; i < size; i++){
+            for (j = i+2; j < size; j++){
+                if (cross_check(tour, i, j)) {
+                    int new_dist;
+                    unwind(tour, i, j);
+                    new_dist = distance(tour);
+                    stop = dist[k] == new_dist;
+                    dist[k] = new_dist;
+                    printf("%lld\n", dist[k]);
+                }
             }
         }
-        if (min_delta < 0) swap(tour, min_idx, (min_idx+size-1) % size);
-        else break;
+        if (stop) break;
     }
-    dist[k] = distance(tour);
-}
-
-int swap_delta(int* tour, int x) {
-    int x_after = (x+1)%size;
-    int y = (x+size-1)%size;
-    int y_before = (y+size-1)%size;
-    return (distance(tour[x], tour[y_before]) + distance(tour[y], tour[x_after])
-        - distance(tour[x], tour[x_after]) - distance(tour[y], tour[y_before]));
 }
 
 void swap(int* tour, int x, int y) {
@@ -309,4 +317,49 @@ void swap(int* tour, int x, int y) {
     tmp = tour[x];
     tour[x] = tour[y];
     tour[y] = tmp;
+}
+
+bool cross_check(int* tour, int left_idx, int right_idx) {
+    int left_before_idx = BEFORE(left_idx);
+    int right_before_idx = BEFORE(right_idx);
+    int left = tour[left_idx];
+    int left_before = tour[left_before_idx];
+    int right = tour[right_idx];
+    int right_before = tour[right_before_idx];
+    return get_line_intersection(
+            x[left], y[left], x[left_before], y[left_before],
+            x[right], y[right], x[right_before], y[right_before]);
+}
+
+// http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+bool get_line_intersection(
+        double p0_x, double p0_y, double p1_x, double p1_y,
+        double p2_x, double p2_y, double p3_x, double p3_y)
+{
+    double s1_x, s1_y, s2_x, s2_y;
+    s1_x = p1_x - p0_x;
+    s1_y = p1_y - p0_y;
+    s2_x = p3_x - p2_x;
+    s2_y = p3_y - p2_y;
+
+    double s, t;
+    s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / (-s2_x * s1_y + s1_x * s2_y);
+    t = (s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / (-s2_x * s1_y + s1_x * s2_y);
+
+    if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+    {
+        return true;
+    }
+
+    return false; // No collision
+}
+
+void unwind(int *tour, int left, int right){
+    int left_before = BEFORE(left);
+    int right_before = BEFORE(right);
+    int gap = (right - left + size) % size;
+    int i;
+    for (i = 0; i < gap / 2; i++){
+        swap(tour, (left+i)%size, ((right-i-1)+size) % size);
+    }
 }
