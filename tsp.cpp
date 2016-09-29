@@ -10,7 +10,7 @@
 #define MUTATE_MAX_RATIO 20
 #define MUTATE_SEL_RATIO 30
 #define SEL_FACTOR 10.0
-#define UPGRADE_RATIO 5.0
+#define UPGRADE_RATIO 30.0
 #define BEFORE(x) (((x)+size-1)%size)
 #define AFTER(x) (((x)+1)%size)
 #define GAUSSIAN_NUM 30
@@ -160,7 +160,7 @@ void output(int* arr) {
     for (i = 0; i < population; i++) {
         fprintf(db, "%lld\n", dist[i]);
         for (j = 0; j < size; j++) {
-            fprintf(db, "%d%s", P[i][j], ((i==size-1)?"\n":" "));
+            fprintf(db, "%d%s", P[i][j], ((j==size-1)?"\n":" "));
         }
     }
     fclose(fo);
@@ -339,7 +339,6 @@ void upgrade(int k) {
     // unwind line segment cross
     while (true) {
         int i, j;
-        int count = 0;
         bool stop = true;
         for (i = 0; i < size; i++){
             for (j = i+2; j < size; j++){
@@ -350,11 +349,10 @@ void upgrade(int k) {
                     stop = dist[k] == new_dist;
                     dist[k] = new_dist;
                     if (upgrade_verbose) printf("%lld\n", dist[k]);
-                    count++;
                 }
             }
         }
-        if (count <= 2 || stop) break;
+        if (stop) break;
     }
     if (upgrade_verbose) printf("done!!\n");
 }
