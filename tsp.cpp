@@ -14,7 +14,7 @@
 #define BEFORE(x) (((x)+size-1)%size)
 #define AFTER(x) (((x)+1)%size)
 #define GAUSSIAN_NUM 30
-#define MULTIPLE 5
+#define MULTIPLE 5 // should be >= 2
 
 typedef long long int LL;
 
@@ -53,6 +53,7 @@ int random_select(int except = -1);             // position random selection
 void population_sort(int);                      // sorting population
 void upgrade(int);                              // to local maximum of given tour
 void swap(int*, int, int);                      // swap position
+void tour_swap(int, int);                       // swap tour
 bool cross_check(int*, int, int);               // line segments cross check
 bool get_line_intersection(
         double, double, double, double,
@@ -244,14 +245,19 @@ void crossover(int father, int mother, int child) {
 
 void next_generation() {
     int father, mother, i;
-    for (i = 0; i < (MULTIPLE-1) * population; i++){
+    for (i = 0; i < (MULTIPLE-1) * population - 10; i++){
         father = random_select();
         mother = random_select(father);
         crossover(father, mother, i + population);
         mutate(i + population);
+        // if (random_pass(UPGRADE_RATIO)) upgrade(i + population);
+        upgrade(i + population);
         // printf("%lld\n", dist[i + population]);
     }
-    population_sort(population * MULTIPLE);
+    for (i = 0; i < population - 10; i++){
+        tour_swap(i + 10, (MULTIPLE-1) *population + i);
+    }
+    population_sort(population * (MULTIPLE - 1));
 }
 
 void population_sort(int n) {
@@ -468,4 +474,13 @@ bool tour_check(int* tour) {
         if (temp_check[tour[i]] == false) return false;
     }
     return true;
+}
+
+void tour_swap(int left, int right) {
+    int* tmp = P[left];
+    P[left] = P[right];
+    P[right] = tmp;
+    int temp = dist[left];
+    dist[left] = dist[right];
+    dist[right] = dist[left];
 }
