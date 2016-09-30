@@ -14,7 +14,8 @@
 #define BEFORE(x) (((x)+size-1)%size)
 #define AFTER(x) (((x)+1)%size)
 #define GAUSSIAN_NUM 30
-#define MULTIPLE 5 // should be >= 2
+#define MULTIPLE 3 // should be >= 2
+#define REMAIN 5
 
 typedef long long int LL;
 
@@ -245,7 +246,7 @@ void crossover(int father, int mother, int child) {
 
 void next_generation() {
     int father, mother, i;
-    for (i = 0; i < (MULTIPLE-1) * population - 10; i++){
+    for (i = 0; i < (MULTIPLE-1) * population - REMAIN; i++){
         father = random_select();
         mother = random_select(father);
         crossover(father, mother, i + population);
@@ -254,8 +255,8 @@ void next_generation() {
         upgrade(i + population);
         // printf("%lld\n", dist[i + population]);
     }
-    for (i = 0; i < population - 10; i++){
-        tour_swap(i + 10, (MULTIPLE-1) *population + i);
+    for (i = 0; i < population - REMAIN; i++){
+        tour_swap(i + REMAIN, (MULTIPLE-1) *population + i);
     }
     population_sort(population * (MULTIPLE - 1));
 }
