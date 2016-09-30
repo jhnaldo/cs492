@@ -8,7 +8,7 @@
 #define SQ(a) ((a) * (a))
 #define MAX_WEIGHT 1000000000
 #define MUTATE_MAX_RATIO 20
-#define MUTATE_SEL_RATIO 30
+#define MUTATE_SEL_RATIO 100.0
 #define SEL_FACTOR 10.0
 #define UPGRADE_RATIO 30.0
 #define BEFORE(x) (((x)+size-1)%size)
@@ -62,6 +62,7 @@ bool tour_check(int*);                          // checking whether it is tour
 double gaussian(int);                           // gaussian random
 void mutate(int);                               // mutate tour
 void read_db();                                 // read db
+bool same(int, int);                            // same tour check
 
 int main(int argc, char** argv) {
     int i;
@@ -247,7 +248,6 @@ void next_generation() {
         father = random_select();
         mother = random_select(father);
         crossover(father, mother, i + population);
-        if (random_pass(UPGRADE_RATIO)) upgrade(i + population);
         mutate(i + population);
         // printf("%lld\n", dist[i + population]);
     }
@@ -320,9 +320,7 @@ void finish() {
 int order_compare(const void *left, const void *right) {
     LL l_pos = dist[*(int*)left];
     LL r_pos = dist[*(int*)right];
-    if (l_pos < r_pos) return -1;
-    else if (l_pos > r_pos) return 1;
-    else return 0;
+    return (l_pos - r_pos);
 }
 
 void print_tour(int* tour) {
@@ -335,7 +333,8 @@ void print_tour(int* tour) {
 
 void upgrade(int k) {
     int *tour = P[k];
-    if (upgrade_verbose) printf("upgrade....");
+    int t;
+    if (upgrade_verbose) printf("upgrade...\n");
     // unwind line segment cross
     while (true) {
         int i, j;
@@ -348,13 +347,12 @@ void upgrade(int k) {
                     new_dist = distance(tour);
                     stop = dist[k] == new_dist;
                     dist[k] = new_dist;
-                    if (upgrade_verbose) printf("%lld\n", dist[k]);
                 }
             }
         }
         if (stop) break;
     }
-    if (upgrade_verbose) printf("done!!\n");
+    if (upgrade_verbose) printf("%lld!!\n", dist[k]);
 }
 
 void swap(int* tour, int x, int y) {
@@ -431,6 +429,7 @@ void mutate(int tour_idx) {
             swap(tour, random_x, random_y);
         }
     }
+    dist[tour_idx] = distance(tour);
 }
 
 void read_db() {
@@ -447,4 +446,26 @@ void read_db() {
         dist[i] = distance(P[i]);
     }
     fclose(db);
+}
+
+bool same(int left, int right) {
+    int i;
+    for (i = 0; i < size; i++) {
+        if (P[left][i] != P[right][i]) return false;
+    }
+    return true;
+}
+
+bool tour_check(int* tour) {
+    int i;
+    for (i = 0; i < size; i++){
+        temp_check[i] = false;
+    }
+    for (i = 0; i < size; i++){
+        temp_check[tour[i]] = true;
+    }
+    for (i = 0; i < size; i++){
+        if (temp_check[tour[i]] == false) return false;
+    }
+    return true;
 }
