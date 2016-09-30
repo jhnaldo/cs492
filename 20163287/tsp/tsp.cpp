@@ -8,14 +8,14 @@
 #define SQ(a) ((a) * (a))
 #define MAX_WEIGHT 1000000000
 #define MUTATE_MAX_RATIO 20
-#define MUTATE_SEL_RATIO 100.0
+#define MUTATE_SEL_RATIO 30.0
 #define SEL_FACTOR 10.0
 #define UPGRADE_RATIO 30.0
 #define BEFORE(x) (((x)+size-1)%size)
 #define AFTER(x) (((x)+1)%size)
 #define GAUSSIAN_NUM 30
-#define MULTIPLE 3 // should be >= 2
-#define REMAIN 5
+#define MULTIPLE 5 // should be >= 2
+#define REMAIN 10
 
 typedef long long int LL;
 
@@ -134,6 +134,7 @@ void input(int argc, char** argv) {
     fscanf(fi, "DIMENSION : %d\n", &size);
     fscanf(fi, "EDGE_WEIGHT_TYPE : %s\n", temp);
     fscanf(fi, "%s\n", temp);
+    printf("%d\n", size);
 
     // data input
     x = new double[size];
@@ -268,12 +269,11 @@ void population_sort(int n) {
     }
     qsort(order, n, sizeof(int), order_compare);
     for (i = 0; i < n; i++) {
-        temp_dist[i] = dist[i];
         temp_P[i] = P[i];
     }
     for (i = 0; i < n; i++) {
-        dist[i] = temp_dist[order[i]];
         P[i] = temp_P[order[i]];
+        dist[i] = distance(P[i]);
     }
 }
 
