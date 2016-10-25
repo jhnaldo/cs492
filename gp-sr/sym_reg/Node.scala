@@ -2,6 +2,14 @@ package sym_reg
 
 sealed abstract class Node {
   def eval(xs: XMap): Double
+  def mse(inputs: List[Data]): Double = {
+    inputs.foldLeft(0.0) {
+      case (sum, Data(xs, y)) => {
+        val diff = eval(xs) - y
+        sum + (diff * diff)
+      }
+    } / inputs.length
+  }
 }
 case class Var(idx: Int) extends Node {
   def eval(xs: XMap): Double = xs(idx)
