@@ -1,7 +1,7 @@
 test:
-	scalac Test.scala
+	scalac Test.scala sym_reg/*.scala
 
 .PHONY: clean
 
 clean:
-	rm -rf *.class
+	rm *.class */*.class
