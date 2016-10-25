@@ -3,4 +3,5 @@ test
 training
 *.csv
 *.swp
+*.class
 .DS_Store
