@@ -1,4 +1,6 @@
 a.out
+test
+training
 *.csv
 *.swp
 .DS_Store
