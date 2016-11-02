@@ -3,7 +3,7 @@ package sym_reg
 import scala.io.Source
 
 object Parser {
-  def parse(str: String): Node = {
+  def parse(str: String): TreeExpr = TreeExpr({
     val stack = str.split(" ").foldLeft(List[Node]()) {
       case (stack, str) => {
         def unary(op: UnOp): List[Node] =
@@ -39,7 +39,7 @@ object Parser {
       }
     }
     stack.head
-  }
+  })
 
   def getData(filename: String): List[Data] = Source
     .fromFile(filename)
