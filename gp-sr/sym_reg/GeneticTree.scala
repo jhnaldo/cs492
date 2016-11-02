@@ -6,7 +6,7 @@ case class GeneticTree(dataList: List[Data]) {
   def training(initial: Option[TreeExpr] = None): TreeExpr = {
     var population: Set[TreeExpr] = initial match {
       case Some(expr) => nextGeneration(expr, randomExpr(MAX_DEPTH), HashSet(expr))
-      case None => createPopulation(P_SIZE)
+      case None => createPopulation(TP_SIZE)
     }
     var k = 0
     var best = TreeExpr(Const(0.0))
@@ -20,7 +20,7 @@ case class GeneticTree(dataList: List[Data]) {
       println(best.mse(dataList))
       println(best)
       val (first: TreeExpr, second: TreeExpr) = select(sorted)
-      val survivals = sorted.slice(0, S_SIZE).toSet
+      val survivals = sorted.slice(0, TS_SIZE).toSet
       population = nextGeneration(first, second, survivals)
     }
     best
@@ -73,7 +73,7 @@ case class GeneticTree(dataList: List[Data]) {
 
   def nextGeneration(father: TreeExpr, mother: TreeExpr, survivals: Set[TreeExpr]): Set[TreeExpr] = {
     var set = survivals
-    while (set.size < P_SIZE) {
+    while (set.size < TP_SIZE) {
       val child = crossover(father, mother)
       val mutated = mutate(child)
       set += mutated

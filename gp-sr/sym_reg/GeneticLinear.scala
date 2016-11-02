@@ -4,26 +4,25 @@ import scala.collection.immutable.HashSet
 
 case class GeneticLinear(dataList: List[Data]) {
   def training: LinearExpr = {
-    var population: Set[LinearExpr] = createPopulation(P_SIZE)
+    var population: List[LinearExpr] = sort(createPopulation(LP_SIZE))
     var best = LinearExpr()
-    (1 to LINEAR_ITER).foreach(_ => {
-      val sorted = sort(population.toList)
-      if (sorted.head == best) k += 1
-      else {
-        best = sorted.head
-        k = 0
+    (1 to LINEAR_ITER).foreach(k => {
+      best = population.head
+      println(s"ITER $k")
+      population.slice(0,LS_SIZE).zipWithIndex.foreach {
+        case (e, idx) =>
+          println(s"[${idx + 1}] ${e.mse(dataList)}")
+          println(e)
       }
-      println(best.mse(dataList))
-      println(best)
-      val (first: LinearExpr, second: LinearExpr) = select(sorted)
-      val survivals = sorted.slice(0, S_SIZE).toSet
-      population = nextGeneration(first, second, survivals)
+      val (first: LinearExpr, second: LinearExpr) = select(population)
+      val survivals = population.slice(0, LS_SIZE).toSet
+      population = sort(nextGeneration(first, second, survivals))
     })
     best
   }
 
   def createPopulation(size: Int): Set[LinearExpr] = {
-    var set = HashSet[LinearExpr]()
+    var set = HashSet[LinearExpr](LinearExpr(0.0), LinearExpr(100.0), LinearExpr(-100.0))
     while (set.size < size) {
       set += randomExpr
     }
@@ -32,19 +31,10 @@ case class GeneticLinear(dataList: List[Data]) {
 
   def randomExpr: LinearExpr = {
     val constant = uniformConst
-  }
-
-  def randomNode(depth: Int): Node = {
-    if (depth <= 1 || pass(TERMINAL_RATIO)) {
-      uniform(
-        Var(uniformIdx(DIMENSION) + 1),
-        Const(uniformConst)
-      )
-    } else if (pass(0.5)) {
-      Unary(uniformUnOp, randomNode(depth - 1))
-    } else {
-      Binary(uniformBinOp, randomNode(depth - 1), randomNode(depth - 1))
+    val coeffs: XMap = (1 to DIMENSION).foldLeft(XMapEmpty) {
+      case (map, idx) => map + (idx -> uniformConst)
     }
+    LinearExpr(constant, coeffs)
   }
 
   def select(population: List[LinearExpr]): (LinearExpr, LinearExpr) = {
@@ -61,11 +51,11 @@ case class GeneticLinear(dataList: List[Data]) {
     (lst.head, lst.tail.head)
   }
 
-  def sort(population: List[LinearExpr]): List[LinearExpr] = population.sortBy(_.mse(dataList))
+  def sort(population: Set[LinearExpr]): List[LinearExpr] = population.toList.sortBy(_.mse(dataList))
 
   def nextGeneration(father: LinearExpr, mother: LinearExpr, survivals: Set[LinearExpr]): Set[LinearExpr] = {
     var set = survivals
-    while (set.size < P_SIZE) {
+    while (set.size < LP_SIZE) {
       val child = crossover(father, mother)
       val mutated = mutate(child)
       set += mutated
@@ -74,61 +64,27 @@ case class GeneticLinear(dataList: List[Data]) {
   }
 
   def crossover(father: LinearExpr, mother: LinearExpr): LinearExpr = {
-    var expr: LinearExpr = null
-    var k = 0
-    do {
-      expr = LinearExpr(crossover(father.node, mother.node))
-      k += 1
-    } while (k < MAX_CO_TRIAL && expr.mse(dataList).isNaN)
-    if (expr.mse(dataList).isNaN) randomExpr(MAX_DEPTH)
-    else expr
+    val constant = crossover(father.constant, mother.constant)
+    val coeffs = father.coeff.foldLeft(XMapEmpty) {
+      case (map, (idx, c)) => map + (idx -> crossover(c, mother.coeff(idx)))
+    }
+    LinearExpr(constant, coeffs)
   }
-  def crossover(left: Node, right: Node): Node = (left, right) match {
-    case (Binary(lop, ll, lr), Binary(rop, rl, rr)) =>
-      Binary(uniform(lop, rop), crossover(ll, rl), crossover(lr, rr))
-    case (Unary(lop, l), Unary(rop, r)) =>
-      Unary(uniform(lop, rop), crossover(l, r))
-    case _ => uniform(left, right)
+  def crossover(left: Double, right: Double): Double = {
+    if (pass(AVERAGE_RATIO))  left + right
+    else if (pass(0.5))       left
+    else                      right
   }
 
   def mutate(expr: LinearExpr): LinearExpr = {
-    var newExpr: LinearExpr = null
-    var k = 0
-    do {
-      newExpr = LinearExpr(mutate(expr.node))
-      k += 1
-    } while (k < MAX_MU_TRIAL && (newExpr == expr || newExpr.mse(dataList).isNaN))
-    if (newExpr == expr || newExpr.mse(dataList).isNaN) randomExpr(MAX_DEPTH)
-    else newExpr
-  }
-  def mutate(node: Node): Node = {
-    if (pass(MUTATION_RATIO)) pointMutate(node)
-    else subtreeMutate(node, MAX_DEPTH)
-  }
-  def pointMutate(node: Node): Node = node match {
-    case Const(value) =>
-      Const(pass(POINT_MU_PROB, uniformConst, value))
-    case Var(idx) =>
-      Var(pass(POINT_MU_PROB, uniformIdx(DIMENSION) + 1, idx))
-    case Unary(uop, child) =>
-      Unary(pass(POINT_MU_PROB, uniformUnOp, uop), pointMutate(child))
-    case Binary(bop, left, right) =>
-      Binary(pass(POINT_MU_PROB, uniformBinOp, bop), pointMutate(left), pointMutate(right))
-  }
-  def subtreeMutate(node: Node, depth: Int): Node = {
-    if (pass(1.0 / node.size)) {
-      randomNode(depth)
-    } else node match {
-      case Unary(uop, child) =>
-        Unary(uop, subtreeMutate(child, depth-1))
-      case Binary(bop, left, right) =>
-        if (pass(left.size.toDouble / (left.size + right.size))) {
-          Binary(bop, subtreeMutate(left, depth-1), right)
-        } else {
-          Binary(bop, left, subtreeMutate(right, depth-1))
-        }
-      case _ => randomNode(depth)
+    val constant = mutate(expr.constant)
+    val coeffs = expr.coeff.foldLeft(XMapEmpty) {
+      case (map, (idx, c)) => map + (idx -> mutate(c))
     }
+    LinearExpr(constant, coeffs)
+  }
+  def mutate(value: Double): Double = {
+    pass(COEFF_MU_RATIO, uniformConst, value)
   }
 
   // helpers for probabilties

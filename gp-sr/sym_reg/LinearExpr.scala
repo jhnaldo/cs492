@@ -4,8 +4,6 @@ case class LinearExpr(
   constant: Double = 0.0,
   coeff: XMap = XMapZero
 ) extends Expr {
-  private var cache: Option[Double] = None
-
   def eval(xs: XMap): Double = {
     (1 to DIMENSION).foldLeft(constant) {
       case (sum, idx) => {
@@ -15,5 +13,13 @@ case class LinearExpr(
   }
 
   def toTree: TreeExpr = TreeExpr(Const(0.0)) // TODO
-  // TODO override def toString: String = ""
+  override def toString: String = {
+    var str = constant.toString
+    coeff.toSeq
+      .sortBy { case (idx, _) => idx }
+      .foreach { case (idx, c) =>
+        str += s"[$idx:$c]"
+      }
+    str
+  }
 }
