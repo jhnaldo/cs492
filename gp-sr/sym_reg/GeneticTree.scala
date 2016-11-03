@@ -9,6 +9,7 @@ case class GeneticTree(dataList: List[Data]) {
       case None => createPopulation(TP_SIZE)
     }
     var k = 0
+    var total = 0
     var best = TreeExpr(Const(0.0))
     while (k < CONVERGE_ITER) {
       val sorted = sort(population.toList)
@@ -17,12 +18,14 @@ case class GeneticTree(dataList: List[Data]) {
         best = sorted.head
         k = 0
       }
-      println(best.mse(dataList))
-      println(best)
       val (first: TreeExpr, second: TreeExpr) = select(sorted)
       val survivals = sorted.slice(0, TS_SIZE).toSet
       population = nextGeneration(first, second, survivals)
+      total += 1
     }
+    println(total)
+    println(best.mse(dataList))
+    println(best)
     best
   }
 

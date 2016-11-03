@@ -15,6 +15,7 @@ package object sym_reg {
   val SELECT_PROB: Double = 0.5       // the probability of selection
   val CONVERGE_ITER: Int = 100        // the number of same best for convergence
   val LINEAR_ITER: Int = 1000         // the number of iterations for linear regression
+  val LOCAL_ITER: Int = 1000000       // the number of iterations for linear regression
   val AVERAGE_RATIO: Double = 0.1     // the probability of averaging two coeffs.
   val COEFF_MU_RATIO: Double = 0.1    // the probability of mutation for each coeff.
 

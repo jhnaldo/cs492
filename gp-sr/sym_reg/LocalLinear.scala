@@ -4,14 +4,22 @@ import scala.collection.immutable.HashSet
 
 case class LocalLinear(dataList: List[Data]) {
   def training: LinearExpr = {
-    (1 to LINEAR_ITER).foldLeft(LinearExpr()) {
+    val best = (1 to LOCAL_ITER).foldLeft(LinearExpr()) {
       case (expr, k) => {
-        uniformIdx(DIMENSION + 1) match {
+        val next = uniformIdx(DIMENSION + 1) match {
           case 0 => findBest(expr, findBestConst)
           case idx => findBest(expr, findBestCoeff(idx))
         }
+        if (k % 1000 == 0) {
+          println(k)
+          println(next.mse(dataList))
+          println(next)
+        }
+        next
       }
     }
+    println(best)
+    best
   }
 
   def findBest(expr: LinearExpr, helper: (LinearExpr, Double) => LinearExpr): LinearExpr = {
@@ -20,8 +28,6 @@ case class LocalLinear(dataList: List[Data]) {
         case ((range, expr), _) =>
           (range / 5, helper(expr, range))
       }
-    println(best.mse(dataList))
-    println(best)
     best
   }
 
