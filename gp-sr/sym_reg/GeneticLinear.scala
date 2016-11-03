@@ -8,16 +8,12 @@ case class GeneticLinear(dataList: List[Data]) {
     var best = LinearExpr()
     (1 to LINEAR_ITER).foreach(k => {
       best = population.head
-      println(s"ITER $k")
-      population.slice(0,LS_SIZE).zipWithIndex.foreach {
-        case (e, idx) =>
-          println(s"[${idx + 1}] ${e.mse(dataList)}")
-          println(e)
-      }
+      println(population(0).mse(dataList))
       val (first: LinearExpr, second: LinearExpr) = select(population)
       val survivals = population.slice(0, LS_SIZE).toSet
       population = sort(nextGeneration(first, second, survivals))
     })
+    println(best)
     best
   }
 

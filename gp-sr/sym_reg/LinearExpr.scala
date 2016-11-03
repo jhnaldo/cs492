@@ -12,14 +12,17 @@ case class LinearExpr(
     }
   }
 
-  def toTree: TreeExpr = TreeExpr(Const(0.0)) // TODO
-  override def toString: String = {
-    var str = constant.toString
-    coeff.toSeq
-      .sortBy { case (idx, _) => idx }
-      .foreach { case (idx, c) =>
-        str += s"[$idx:$c]"
-      }
-    str
+  def toTree: TreeExpr = {
+    TreeExpr(Binary(Add, Const(constant), toTree(1, 57)))
   }
+  def toTree(from: Int, to: Int): Node = {
+    if (from == to) {
+      Binary(Mul, Var(from), Const(coeff(from)))
+    } else {
+      val mid = (from + to + 1) / 2
+      Binary(Add, toTree(from, mid-1), toTree(mid, to))
+    }
+  }
+
+  override def toString: String = toTree.toString
 }
